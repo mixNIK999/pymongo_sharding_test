@@ -1,0 +1,35 @@
+#cloud-config
+
+packages:
+  - docker.io
+  - mongodb-clients
+
+# create the docker group
+groups:
+  - docker
+
+# Add default auto created user to docker group
+system_info:
+  default_user:
+    groups: [docker]
+
+runcmd:
+  - sudo curl -L git.io/weave -o /usr/local/bin/weave
+  - sudo chmod a+x /usr/local/bin/weave
+
+  - weave launch ${cfg-primary}
+  - eval $(weave env)
+  
+  - /usr/bin/docker pull bitnami/mongodb-sharded
+  - >
+    /usr/bin/docker run -d --restart=always
+    --name mongos
+    -e MONGODB_SHARDING_MODE=mongos
+    -e MONGODB_CFG_PRIMARY_HOST=configsvr
+    -e MONGODB_CFG_REPLICA_SET_NAME=config-replicaset
+    -e MONGODB_REPLICA_SET_KEY=replicasetkey123
+    -e MONGODB_ROOT_PASSWORD=password123
+    bitnami/mongodb-sharded
+  - weave expose
+  - iptables -t nat -A PREROUTING -p tcp -i ens5 --dport 27017 -j DNAT --to-destination $(weave dns-lookup mongos):27017
+  - echo kek
